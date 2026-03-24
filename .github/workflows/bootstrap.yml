@@ -36,6 +36,17 @@ jobs:
                     owner: ${{ inputs.org }}
 
             -
+                name: Check repo is empty
+                env:
+                    GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                run: |
+                    COUNT=$(gh api repos/${{ inputs.org }}/${{ inputs.repo }}/commits --jq 'length' 2>/dev/null || echo "0")
+                    if [ "$COUNT" -gt "0" ]; then
+                        echo "::error::Repo already has commits. Bootstrap aborted."
+                        exit 1
+                    fi
+
+            -
                 name: Derive names
                 id: meta
                 env:
