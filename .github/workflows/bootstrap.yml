@@ -25,6 +25,9 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             -
+                uses: actions/checkout@v4
+
+            -
                 uses: actions/create-github-app-token@v1
                 id: app-token
                 with:
@@ -118,12 +121,7 @@ jobs:
                     COMPANY_KEBAB: ${{ steps.meta.outputs.company_kebab }}
                     NAME_KEBAB: ${{ steps.meta.outputs.name_kebab }}
                 run: |
-                    git clone --depth 1 --filter=blob:none --sparse \
-                      https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/Guiziweb/guiziweb-plugins.git \
-                      /tmp/guiziweb-plugins
-                    git -C /tmp/guiziweb-plugins sparse-checkout set plugins/sylius-plugin/skills/init/templates
-
-                    cp -r /tmp/guiziweb-plugins/plugins/sylius-plugin/skills/init/templates/. .
+                    cp -r $GITHUB_WORKSPACE/templates/. .
 
                     python3 - <<'EOF'
                     import os
