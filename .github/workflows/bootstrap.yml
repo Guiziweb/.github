@@ -159,14 +159,16 @@ jobs:
                     ORG: ${{ inputs.org }}
                     REPO: ${{ inputs.repo }}
                 run: |
-                    REPO_ID=$(gh api repos/${{ inputs.org }}/${{ inputs.repo }} --jq '.id')
-
                     python3 - <<'EOF'
                     import json, os, subprocess
 
-                    repo_id = int(os.environ['REPO_ID'])
                     org = os.environ['ORG']
                     repo = os.environ['REPO']
+
+                    repo_id = int(subprocess.run(
+                        ["gh", "api", f"repos/{org}/{repo}", "--jq", ".id"],
+                        capture_output=True, text=True
+                    ).stdout.strip())
 
                     ruleset = {
                         "name": "main",
