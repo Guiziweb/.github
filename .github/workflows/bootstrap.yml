@@ -140,10 +140,11 @@ jobs:
                 name: Push to target repo
                 working-directory: /tmp/plugin
                 run: |
+                    rm -rf .git
                     git init -b main
                     git config user.name "guiziweb-bot[bot]"
                     git config user.email "guiziweb-bot[bot]@users.noreply.github.com"
-                    git remote set-url origin https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/${{ inputs.org }}/${{ inputs.repo }}.git
+                    git remote add origin https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/${{ inputs.org }}/${{ inputs.repo }}.git
                     git add -A
                     git commit -m "chore: bootstrap plugin from skeleton"
                     git push origin main
