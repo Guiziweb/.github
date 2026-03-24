@@ -151,3 +151,69 @@ jobs:
                     git push origin main
                     git tag v0.1.0
                     git push origin v0.1.0
+
+            -
+                name: Protect main branch
+                env:
+                    GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                run: |
+                    REPO_ID=$(gh api repos/${{ inputs.org }}/${{ inputs.repo }} --jq '.id')
+
+                    gh api repos/${{ inputs.org }}/${{ inputs.repo }}/rulesets \
+                      --method POST \
+                      --input - <<EOF
+                    {
+                      "name": "main",
+                      "target": "branch",
+                      "enforcement": "active",
+                      "conditions": {
+                        "ref_name": {
+                          "include": ["refs/heads/main"],
+                          "exclude": []
+                        }
+                      },
+                      "rules": [
+                        {
+                          "type": "pull_request",
+                          "parameters": {
+                            "required_approving_review_count": 0,
+                            "dismiss_stale_reviews_on_push": false,
+                            "require_code_owner_review": false,
+                            "require_last_push_approval": false,
+                            "required_review_thread_resolution": false
+                          }
+                        },
+                        {
+                          "type": "workflows",
+                          "parameters": {
+                            "workflows": [
+                              {
+                                "path": ".github/workflows/build.yaml",
+                                "repository_id": $REPO_ID,
+                                "ref": "main"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                    EOF
+
+            -
+                name: Create summary issue
+                env:
+                    GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                run: |
+                    PACKAGE="${{ steps.meta.outputs.company_kebab }}/sylius-${{ steps.meta.outputs.name_kebab }}-plugin"
+
+                    gh issue create \
+                      --repo ${{ inputs.org }}/${{ inputs.repo }} \
+                      --title "Plugin bootstrapped" \
+                      --body "## ${{ inputs.repo }}
+
+                    | | |
+                    |---|---|
+                    | **Package** | \`${PACKAGE}\` |
+                    | **Packagist** | https://packagist.org/packages/${PACKAGE} |
+
+                    > La PR Flex Recipe sera ajoutée en commentaire une fois créée."
