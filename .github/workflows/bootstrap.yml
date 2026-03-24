@@ -186,13 +186,7 @@ jobs:
                                     "required_review_thread_resolution": False
                                 }
                             },
-                            {
-                                "type": "workflows",
-                                "parameters": {
-                                    "workflows": [{"path": ".github/workflows/build.yaml", "repository_id": repo_id, "ref": "main"}]
-                                }
-                            }
-                        ]
+                            ]
                     }
 
                     result = subprocess.run(
