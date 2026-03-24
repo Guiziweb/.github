@@ -36,14 +36,26 @@ jobs:
                     owner: ${{ inputs.org }}
 
             -
-                name: Check repo is empty
+                name: Create or check repo
                 env:
                     GH_TOKEN: ${{ steps.app-token.outputs.token }}
                 run: |
-                    COUNT=$(gh api repos/${{ inputs.org }}/${{ inputs.repo }}/commits --jq 'length' 2>/dev/null || echo "0")
-                    if [ "$COUNT" -gt "0" ]; then
-                        echo "::error::Repo already has commits. Bootstrap aborted."
-                        exit 1
+                    EXISTS=$(gh api repos/${{ inputs.org }}/${{ inputs.repo }} --jq '.name' 2>/dev/null || echo "")
+                    if [ -z "$EXISTS" ]; then
+                        gh api orgs/${{ inputs.org }}/repos \
+                          --method POST \
+                          --field name="${{ inputs.repo }}" \
+                          --field private=true \
+                          --field description="${{ inputs.description }}" \
+                          --jq '.full_name'
+                        echo "Repo created."
+                    else
+                        COUNT=$(gh api repos/${{ inputs.org }}/${{ inputs.repo }}/commits --jq 'length' 2>/dev/null || echo "0")
+                        if [ "$COUNT" -gt "0" ]; then
+                            echo "::error::Repo already has commits. Bootstrap aborted."
+                            exit 1
+                        fi
+                        echo "Repo exists and is empty, continuing."
                     fi
 
             -
