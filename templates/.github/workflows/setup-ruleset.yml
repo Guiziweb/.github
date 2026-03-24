@@ -1,4 +1,4 @@
-name: Setup Branch Ruleset
+name: Setup Branch Protection
 
 on:
     workflow_run:
@@ -7,7 +7,7 @@ on:
         branches: [main]
 
 jobs:
-    setup-ruleset:
+    setup-protection:
         runs-on: ubuntu-latest
         if: ${{ !github.event.workflow_run.conclusion || github.event.workflow_run.conclusion == 'success' }}
         steps:
@@ -20,14 +20,16 @@ jobs:
                     owner: ${{ github.repository_owner }}
 
             -
-                name: Create branch ruleset
+                name: Setup branch protection
                 env:
                     GH_TOKEN: ${{ steps.app-token.outputs.token }}
                 run: |
-                    # Skip if ruleset already exists
-                    EXISTS=$(gh api repos/${{ github.repository }}/rulesets --jq '[.[] | select(.name == "main")] | length')
-                    if [ "$EXISTS" -gt "0" ]; then
-                        echo "Ruleset already exists, skipping."
+                    # Skip if branch protection already configured
+                    STATUS=$(gh api repos/${{ github.repository }}/branches/main/protection \
+                      --jq '.required_pull_request_reviews != null or .required_status_checks != null' \
+                      2>/dev/null || echo "false")
+                    if [ "$STATUS" = "true" ]; then
+                        echo "Branch protection already configured, skipping."
                         exit 0
                     fi
 
@@ -35,39 +37,25 @@ jobs:
                     import json, os, subprocess
 
                     repo = os.environ['GITHUB_REPOSITORY']
-                    repo_id = int(subprocess.run(
-                        ["gh", "api", f"repos/{repo}", "--jq", ".id"],
-                        capture_output=True, text=True
-                    ).stdout.strip())
 
-                    ruleset = {
-                        "name": "main",
-                        "target": "branch",
-                        "enforcement": "active",
-                        "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
-                        "rules": [
-                            {
-                                "type": "pull_request",
-                                "parameters": {
-                                    "required_approving_review_count": 0,
-                                    "dismiss_stale_reviews_on_push": False,
-                                    "require_code_owner_review": False,
-                                    "require_last_push_approval": False,
-                                    "required_review_thread_resolution": False
-                                }
-                            },
-                            {
-                                "type": "workflows",
-                                "parameters": {
-                                    "workflows": [{"path": ".github/workflows/build.yaml", "repository_id": repo_id, "ref": "main"}]
-                                }
-                            }
-                        ]
+                    payload = {
+                        "required_status_checks": {
+                            "strict": False,
+                            "contexts": ["build"]
+                        },
+                        "enforce_admins": False,
+                        "required_pull_request_reviews": {
+                            "required_approving_review_count": 0,
+                            "dismiss_stale_reviews": False,
+                            "require_code_owner_reviews": False
+                        },
+                        "restrictions": None
                     }
 
                     result = subprocess.run(
-                        ["gh", "api", f"repos/{repo}/rulesets", "--method", "POST", "--input", "-"],
-                        input=json.dumps(ruleset).encode(),
+                        ["gh", "api", f"repos/{repo}/branches/main/protection",
+                         "--method", "PUT", "--input", "-"],
+                        input=json.dumps(payload).encode(),
                         capture_output=True
                     )
                     print(result.stdout.decode())
