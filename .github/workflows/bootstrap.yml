@@ -153,54 +153,6 @@ jobs:
                     git push --force origin v0.1.0
 
             -
-                name: Protect main branch
-                env:
-                    GH_TOKEN: ${{ steps.app-token.outputs.token }}
-                    ORG: ${{ inputs.org }}
-                    REPO: ${{ inputs.repo }}
-                run: |
-                    python3 - <<'EOF'
-                    import json, os, subprocess
-
-                    org = os.environ['ORG']
-                    repo = os.environ['REPO']
-
-                    repo_id = int(subprocess.run(
-                        ["gh", "api", f"repos/{org}/{repo}", "--jq", ".id"],
-                        capture_output=True, text=True
-                    ).stdout.strip())
-
-                    ruleset = {
-                        "name": "main",
-                        "target": "branch",
-                        "enforcement": "active",
-                        "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
-                        "rules": [
-                            {
-                                "type": "pull_request",
-                                "parameters": {
-                                    "required_approving_review_count": 0,
-                                    "dismiss_stale_reviews_on_push": False,
-                                    "require_code_owner_review": False,
-                                    "require_last_push_approval": False,
-                                    "required_review_thread_resolution": False
-                                }
-                            },
-                            ]
-                    }
-
-                    result = subprocess.run(
-                        ["gh", "api", f"repos/{org}/{repo}/rulesets", "--method", "POST", "--input", "-"],
-                        input=json.dumps(ruleset).encode(),
-                        capture_output=True
-                    )
-                    print(result.stdout.decode())
-                    if result.returncode != 0:
-                        print(result.stderr.decode(), flush=True)
-                        exit(result.returncode)
-                    EOF
-
-            -
                 name: Create summary issue
                 env:
                     GH_TOKEN: ${{ steps.app-token.outputs.token }}

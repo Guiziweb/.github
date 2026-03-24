@@ -1,0 +1,77 @@
+name: Setup Branch Ruleset
+
+on:
+    workflow_run:
+        workflows: ["Build"]
+        types: [completed]
+        branches: [main]
+
+jobs:
+    setup-ruleset:
+        runs-on: ubuntu-latest
+        if: ${{ !github.event.workflow_run.conclusion || github.event.workflow_run.conclusion == 'success' }}
+        steps:
+            -
+                uses: actions/create-github-app-token@v1
+                id: app-token
+                with:
+                    app-id: ${{ secrets.APP_ID }}
+                    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+                    owner: ${{ github.repository_owner }}
+
+            -
+                name: Create branch ruleset
+                env:
+                    GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                run: |
+                    # Skip if ruleset already exists
+                    EXISTS=$(gh api repos/${{ github.repository }}/rulesets --jq '[.[] | select(.name == "main")] | length')
+                    if [ "$EXISTS" -gt "0" ]; then
+                        echo "Ruleset already exists, skipping."
+                        exit 0
+                    fi
+
+                    python3 - <<'EOF'
+                    import json, os, subprocess
+
+                    repo = os.environ['GITHUB_REPOSITORY']
+                    repo_id = int(subprocess.run(
+                        ["gh", "api", f"repos/{repo}", "--jq", ".id"],
+                        capture_output=True, text=True
+                    ).stdout.strip())
+
+                    ruleset = {
+                        "name": "main",
+                        "target": "branch",
+                        "enforcement": "active",
+                        "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
+                        "rules": [
+                            {
+                                "type": "pull_request",
+                                "parameters": {
+                                    "required_approving_review_count": 0,
+                                    "dismiss_stale_reviews_on_push": False,
+                                    "require_code_owner_review": False,
+                                    "require_last_push_approval": False,
+                                    "required_review_thread_resolution": False
+                                }
+                            },
+                            {
+                                "type": "workflows",
+                                "parameters": {
+                                    "workflows": [{"path": ".github/workflows/build.yaml", "repository_id": repo_id, "ref": "main"}]
+                                }
+                            }
+                        ]
+                    }
+
+                    result = subprocess.run(
+                        ["gh", "api", f"repos/{repo}/rulesets", "--method", "POST", "--input", "-"],
+                        input=json.dumps(ruleset).encode(),
+                        capture_output=True
+                    )
+                    print(result.stdout.decode())
+                    if result.returncode != 0:
+                        print(result.stderr.decode(), flush=True)
+                        exit(result.returncode)
+                    EOF
