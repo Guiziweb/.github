@@ -83,7 +83,7 @@ jobs:
                     git checkout -b "$BRANCH"
                     git add -A
                     git commit -m "feat: add recipe for ${{ steps.meta.outputs.package_kebab }} 0.1"
-                    git push origin "$BRANCH"
+                    git push origin "$BRANCH" --force --force
                     GH_TOKEN="${{ steps.app-token.outputs.token }}" gh pr create \
                       --repo Guiziweb/SyliusRecipes \
                       --title "feat: add recipe for ${{ steps.meta.outputs.package_kebab }} 0.1" \
