@@ -83,10 +83,14 @@ jobs:
                     git checkout -b "$BRANCH"
                     git add -A
                     git commit -m "feat: add recipe for ${{ steps.meta.outputs.package_kebab }} 0.1"
-                    git push origin "$BRANCH" --force --force
-                    GH_TOKEN="${{ steps.app-token.outputs.token }}" gh pr create \
+                    git push origin "$BRANCH" --force
+                    PR_URL=$(GH_TOKEN="${{ steps.app-token.outputs.token }}" gh pr create \
                       --repo Guiziweb/SyliusRecipes \
                       --title "feat: add recipe for ${{ steps.meta.outputs.package_kebab }} 0.1" \
                       --body "Automated recipe for \`${{ steps.meta.outputs.company_kebab }}/${{ steps.meta.outputs.package_kebab }}\`." \
                       --base main \
-                      --head "$BRANCH"
+                      --head "$BRANCH")
+
+                    GH_TOKEN="${{ steps.app-token.outputs.token }}" gh issue comment 1 \
+                      --repo ${{ github.repository }} \
+                      --body "**Flex Recipe PR créée :** ${PR_URL}"
