@@ -40,8 +40,14 @@ jobs:
                 env:
                     GH_TOKEN: ${{ steps.app-token.outputs.token }}
                 run: |
-                    EXISTS=$(gh api repos/${{ inputs.org }}/${{ inputs.repo }} --jq '.name' 2>/dev/null || echo "")
-                    if [ -z "$EXISTS" ]; then
+                    if gh api repos/${{ inputs.org }}/${{ inputs.repo }} --silent 2>/dev/null; then
+                        COUNT=$(gh api repos/${{ inputs.org }}/${{ inputs.repo }}/commits 2>/dev/null | jq 'if type == "array" then length else 0 end')
+                        if [ "$COUNT" -gt "0" ]; then
+                            echo "::error::Repo already has commits. Bootstrap aborted."
+                            exit 1
+                        fi
+                        echo "Repo exists and is empty, continuing."
+                    else
                         gh api orgs/${{ inputs.org }}/repos \
                           --method POST \
                           --field name="${{ inputs.repo }}" \
@@ -49,13 +55,6 @@ jobs:
                           --field description="${{ inputs.description }}" \
                           --jq '.full_name'
                         echo "Repo created."
-                    else
-                        COUNT=$(gh api repos/${{ inputs.org }}/${{ inputs.repo }}/commits --jq 'length' 2>/dev/null || echo "0")
-                        if [ "$COUNT" -gt "0" ]; then
-                            echo "::error::Repo already has commits. Bootstrap aborted."
-                            exit 1
-                        fi
-                        echo "Repo exists and is empty, continuing."
                     fi
 
             -
