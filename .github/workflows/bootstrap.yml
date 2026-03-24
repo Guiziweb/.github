@@ -156,47 +156,52 @@ jobs:
                 name: Protect main branch
                 env:
                     GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                    ORG: ${{ inputs.org }}
+                    REPO: ${{ inputs.repo }}
                 run: |
                     REPO_ID=$(gh api repos/${{ inputs.org }}/${{ inputs.repo }} --jq '.id')
 
-                    gh api repos/${{ inputs.org }}/${{ inputs.repo }}/rulesets \
-                      --method POST \
-                      --input - <<EOF
-                    {
-                      "name": "main",
-                      "target": "branch",
-                      "enforcement": "active",
-                      "conditions": {
-                        "ref_name": {
-                          "include": ["refs/heads/main"],
-                          "exclude": []
-                        }
-                      },
-                      "rules": [
-                        {
-                          "type": "pull_request",
-                          "parameters": {
-                            "required_approving_review_count": 0,
-                            "dismiss_stale_reviews_on_push": false,
-                            "require_code_owner_review": false,
-                            "require_last_push_approval": false,
-                            "required_review_thread_resolution": false
-                          }
-                        },
-                        {
-                          "type": "workflows",
-                          "parameters": {
-                            "workflows": [
-                              {
-                                "path": ".github/workflows/build.yaml",
-                                "repository_id": $REPO_ID,
-                                "ref": "main"
-                              }
-                            ]
-                          }
-                        }
-                      ]
+                    python3 - <<'EOF'
+                    import json, os, subprocess
+
+                    repo_id = int(os.environ['REPO_ID'])
+                    org = os.environ['ORG']
+                    repo = os.environ['REPO']
+
+                    ruleset = {
+                        "name": "main",
+                        "target": "branch",
+                        "enforcement": "active",
+                        "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
+                        "rules": [
+                            {
+                                "type": "pull_request",
+                                "parameters": {
+                                    "required_approving_review_count": 0,
+                                    "dismiss_stale_reviews_on_push": False,
+                                    "require_code_owner_review": False,
+                                    "require_last_push_approval": False,
+                                    "required_review_thread_resolution": False
+                                }
+                            },
+                            {
+                                "type": "workflows",
+                                "parameters": {
+                                    "workflows": [{"path": ".github/workflows/build.yaml", "repository_id": repo_id, "ref": "main"}]
+                                }
+                            }
+                        ]
                     }
+
+                    result = subprocess.run(
+                        ["gh", "api", f"repos/{org}/{repo}/rulesets", "--method", "POST", "--input", "-"],
+                        input=json.dumps(ruleset).encode(),
+                        capture_output=True
+                    )
+                    print(result.stdout.decode())
+                    if result.returncode != 0:
+                        print(result.stderr.decode(), flush=True)
+                        exit(result.returncode)
                     EOF
 
             -
