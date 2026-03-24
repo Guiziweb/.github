@@ -148,7 +148,7 @@ jobs:
                     git remote add origin https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/${{ inputs.org }}/${{ inputs.repo }}.git
                     git add -A
                     git commit -m "chore: bootstrap plugin from skeleton"
-                    git push origin main
+                    git push --force origin main
                     git tag v0.1.0
                     git push origin v0.1.0
 
