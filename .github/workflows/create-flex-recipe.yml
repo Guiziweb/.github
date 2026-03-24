@@ -1,0 +1,92 @@
+name: Create Flex Recipe
+
+on:
+    workflow_call:
+
+jobs:
+    create-recipe:
+        runs-on: ubuntu-latest
+        steps:
+            -
+                uses: actions/create-github-app-token@v1
+                id: app-token
+                with:
+                    app-id: ${{ secrets.APP_ID }}
+                    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+                    owner: ${{ github.repository_owner }}
+
+            -
+                uses: actions/checkout@v4
+                with:
+                    token: ${{ steps.app-token.outputs.token }}
+
+            -
+                name: Extract plugin metadata
+                id: meta
+                run: |
+                    python3 - >> $GITHUB_OUTPUT <<'EOF'
+                    import json, re
+
+                    data = json.load(open('composer.json'))
+                    package = data['name']
+                    company, pkg = package.split('/')
+                    ns = list(data['autoload']['psr-4'].keys())[0].rstrip('\\')
+                    bundle_class = ns.replace('\\', '')
+                    name_part = re.sub(r'-plugin$', '', re.sub(r'^sylius-', '', pkg)).replace('-', '_')
+                    alias = company.replace('-', '_') + '_' + name_part
+
+                    print(f'company_kebab={company}')
+                    print(f'package_kebab={pkg}')
+                    print(f'ns={ns}')
+                    print(f'bundle_class={bundle_class}')
+                    print(f'alias={alias}')
+                    EOF
+
+            -
+                name: Clone SyliusRecipes
+                run: |
+                    git clone \
+                      "https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/Guiziweb/SyliusRecipes.git" \
+                      /tmp/SyliusRecipes
+
+            -
+                name: Create recipe files
+                run: |
+                    RECIPE_DIR="/tmp/SyliusRecipes/${{ steps.meta.outputs.company_kebab }}/${{ steps.meta.outputs.package_kebab }}/0.1"
+                    mkdir -p "${RECIPE_DIR}/config/packages"
+                    mkdir -p "${RECIPE_DIR}/config/routes"
+
+                    jq -n \
+                      --arg fqcn "${{ steps.meta.outputs.ns }}\\${{ steps.meta.outputs.bundle_class }}" \
+                      '{"bundles": {($fqcn): ["all"]}, "copy-from-recipe": {"config/": "%CONFIG_DIR%/"}}' \
+                      > "${RECIPE_DIR}/manifest.json"
+
+                    printf 'imports:\n    - { resource: "@%s/config/config.yaml" }\n' \
+                      "${{ steps.meta.outputs.bundle_class }}" \
+                      > "${RECIPE_DIR}/config/packages/${{ steps.meta.outputs.package_kebab }}.yaml"
+
+                    printf '%s_admin:\n    resource: "@%s/config/routes/admin.yaml"\n\n%s_shop:\n    resource: "@%s/config/routes/shop.yaml"\n' \
+                      "${{ steps.meta.outputs.alias }}" "${{ steps.meta.outputs.bundle_class }}" \
+                      "${{ steps.meta.outputs.alias }}" "${{ steps.meta.outputs.bundle_class }}" \
+                      > "${RECIPE_DIR}/config/routes/${{ steps.meta.outputs.package_kebab }}.yaml"
+
+                    echo "${{ steps.meta.outputs.bundle_class }} installed!" \
+                      > "${RECIPE_DIR}/post-install.txt"
+
+            -
+                name: Open PR on SyliusRecipes
+                run: |
+                    cd /tmp/SyliusRecipes
+                    git config user.name "guiziweb-bot[bot]"
+                    git config user.email "guiziweb-bot[bot]@users.noreply.github.com"
+                    BRANCH="feat/${{ steps.meta.outputs.package_kebab }}"
+                    git checkout -b "$BRANCH"
+                    git add -A
+                    git commit -m "feat: add recipe for ${{ steps.meta.outputs.package_kebab }} 0.1"
+                    git push origin "$BRANCH"
+                    GH_TOKEN="${{ steps.app-token.outputs.token }}" gh pr create \
+                      --repo Guiziweb/SyliusRecipes \
+                      --title "feat: add recipe for ${{ steps.meta.outputs.package_kebab }} 0.1" \
+                      --body "Automated recipe for \`${{ steps.meta.outputs.company_kebab }}/${{ steps.meta.outputs.package_kebab }}\`." \
+                      --base main \
+                      --head "$BRANCH"
