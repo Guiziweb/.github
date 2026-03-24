@@ -1,0 +1,139 @@
+name: Bootstrap Plugin
+
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    bootstrap:
+        runs-on: ubuntu-latest
+        if: ${{ github.event.commits[0].message == 'chore: init' }}
+        steps:
+            -
+                uses: actions/create-github-app-token@v1
+                id: app-token
+                with:
+                    app-id: ${{ secrets.APP_ID }}
+                    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+            -
+                uses: actions/checkout@v4
+                with:
+                    token: ${{ steps.app-token.outputs.token }}
+
+            -
+                name: Extract names from repo
+                id: meta
+                run: |
+                    python3 - >> $GITHUB_OUTPUT <<'EOF'
+                    import re, os
+
+                    repo = os.environ['GITHUB_REPOSITORY'].split('/')[1]  # ex: GuiziwebTestPlugin
+                    match = re.match(r'^([A-Z][a-z]+)((?:[A-Z][a-z]+)+)Plugin$', repo)
+                    if not match:
+                        raise ValueError(f"Cannot parse repo name: {repo}")
+
+                    company = match.group(1)
+                    name = match.group(2)
+                    company_kebab = re.sub(r'([a-z])([A-Z])', r'\1-\2', company).lower()
+                    name_kebab = re.sub(r'([a-z])([A-Z])', r'\1-\2', name).lower()
+
+                    print(f'company={company}')
+                    print(f'name={name}')
+                    print(f'company_kebab={company_kebab}')
+                    print(f'name_kebab={name_kebab}')
+                    EOF
+
+            -
+                name: Clone skeleton
+                run: |
+                    git clone https://github.com/Sylius/PluginSkeleton.git /tmp/skeleton
+                    cp -r /tmp/skeleton/. .
+                    rm -rf /tmp/skeleton
+
+            -
+                name: Rename plugin
+                run: |
+                    composer install --no-interaction --quiet
+                    php bin/rename-plugin.php \
+                      --company=${{ steps.meta.outputs.company }} \
+                      --plugin-name=${{ steps.meta.outputs.name }} \
+                      --description="${{ github.event.repository.description }}" \
+                      --skip-interaction
+
+            -
+                name: Cleanup skeleton
+                run: |
+                    python3 - <<'EOF'
+                    import os, re, shutil
+
+                    files_to_remove = [
+                        'RENAME_GUIDE.md', 'CLAUDE.md', 'AGENTS.md',
+                        'CLEANUP_GUIDE.md', 'COMPATIBILITY_GUIDE.md',
+                        'src/Controller/GreetingController.php',
+                        'assets/shop/js/greetings.js',
+                        'features/dynamically_greeting_a_customer.feature',
+                        'features/statically_greeting_a_customer.feature',
+                        'config/services.xml',
+                    ]
+                    dirs_to_remove = ['templates/shop/greeting']
+
+                    for f in files_to_remove:
+                        if os.path.exists(f):
+                            os.remove(f)
+                    for d in dirs_to_remove:
+                        if os.path.exists(d):
+                            shutil.rmtree(d)
+
+                    # Remove XmlFileLoader/services.xml from Extension
+                    ext_dir = 'src/DependencyInjection'
+                    for fname in os.listdir(ext_dir):
+                        if fname.endswith('Extension.php'):
+                            path = os.path.join(ext_dir, fname)
+                            lines = open(path).readlines()
+                            lines = [l for l in lines if not re.search(r'XmlFileLoader|FileLocator|services\.xml', l)]
+                            open(path, 'w').writelines(lines)
+
+                    # Empty files
+                    for f in ['config/twig_hooks/shop.yaml', 'config/routes/shop.yaml',
+                              'config/routes/admin.yaml', 'assets/shop/entrypoint.js']:
+                        if os.path.exists(f):
+                            open(f, 'w').close()
+
+                    print("Skeleton cleaned up")
+                    EOF
+
+            -
+                name: Copy templates
+                uses: actions/checkout@v4
+                with:
+                    repository: Guiziweb/guiziweb-plugins
+                    token: ${{ steps.app-token.outputs.token }}
+                    path: /tmp/guiziweb-plugins
+                    sparse-checkout: plugins/sylius-plugin/skills/init/templates
+
+            -
+                name: Apply templates
+                run: |
+                    cp -r /tmp/guiziweb-plugins/plugins/sylius-plugin/skills/init/templates/. .
+                    BUNDLE_CLASS="${{ steps.meta.outputs.company }}Sylius${{ steps.meta.outputs.name }}Plugin"
+                    PACKAGE="${{ steps.meta.outputs.company_kebab }}/sylius-${{ steps.meta.outputs.name_kebab }}-plugin"
+                    DESCRIPTION="${{ github.event.repository.description }}"
+                    python3 -c "
+                    import re
+                    content = open('README.md').read()
+                    content = content.replace('{BundleClass}', '$BUNDLE_CLASS')
+                    content = content.replace('{description}', '$DESCRIPTION')
+                    content = content.replace('{package}', '$PACKAGE')
+                    open('README.md', 'w').write(content)
+                    "
+
+            -
+                name: Commit
+                run: |
+                    git config user.name "guiziweb-bot[bot]"
+                    git config user.email "guiziweb-bot[bot]@users.noreply.github.com"
+                    git add -A
+                    git commit -m "chore: bootstrap plugin from skeleton"
+                    git push origin main
