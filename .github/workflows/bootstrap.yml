@@ -171,6 +171,11 @@ jobs:
                     git add -A
                     git commit -m "chore: bootstrap plugin from skeleton"
                     git push --force origin main
+
+            -
+                name: Tag v0.1.0
+                working-directory: /tmp/plugin
+                run: |
                     git tag v0.1.0
                     git push --force origin v0.1.0
 
