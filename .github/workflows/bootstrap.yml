@@ -51,7 +51,7 @@ jobs:
                         gh api orgs/${{ inputs.org }}/repos \
                           --method POST \
                           --field name="${{ inputs.repo }}" \
-                          --field private=true \
+                          --field private=false \
                           --field description="${{ inputs.description }}" \
                           --jq '.full_name'
                         echo "Repo created."
