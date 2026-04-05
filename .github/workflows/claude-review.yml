@@ -34,6 +34,8 @@ jobs:
                 uses: anthropics/claude-code-action@v1
                 env:
                     PR_NUMBER: ${{ github.event.client_payload.pr }}
+                    REPO_OWNER: Guiziweb
+                    REPO_NAME: ${{ github.event.client_payload.repo_name }}
                 with:
                     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
                     github_token: ${{ steps.app-token.outputs.token }}
