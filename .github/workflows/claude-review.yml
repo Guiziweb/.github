@@ -7,6 +7,7 @@ on:
 jobs:
     claude-review:
         runs-on: ubuntu-latest
+        timeout-minutes: 15
         permissions:
             contents: read
             pull-requests: write
@@ -31,10 +32,14 @@ jobs:
 
             -
                 uses: anthropics/claude-code-action@v1
+                env:
+                    PR_NUMBER: ${{ github.event.client_payload.pr }}
+                    REPO_OWNER: Guiziweb
+                    REPO_NAME: ${{ github.event.client_payload.repo_name }}
                 with:
                     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
                     github_token: ${{ steps.app-token.outputs.token }}
-                    plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-                    plugins: 'code-review@claude-code-plugins'
+                    plugin_marketplaces: 'https://github.com/Guiziweb/guiziweb-plugins.git'
+                    plugins: 'code-review@guiziweb-plugins'
                     allowed_bots: 'guiziwebbot'
                     prompt: '/code-review:code-review ${{ github.event.client_payload.repo }}/pull/${{ github.event.client_payload.pr }} --comment'
