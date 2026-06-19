@@ -79,7 +79,7 @@ jobs:
                     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
                     github_token: ${{ steps.app-token.outputs.token }}
                     allowed_bots: 'guiziwebbot'
-                    claude_args: '--permission-mode acceptEdits --allowedTools Edit,Write,Read,Glob,Grep'
+                    claude_args: '--permission-mode acceptEdits --allowedTools Edit,Write,Read,Glob,Grep,Bash(gh:*),Bash(git:*)'
                     prompt: |
                         Tu travailles sur le repo ${{ github.repository }}, à propos de l'issue #${{ steps.classify.outputs.number }}.
 
