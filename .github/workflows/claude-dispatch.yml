@@ -31,92 +31,19 @@ jobs:
                     repositories: ${{ github.event.repository.name }}
 
             -
-                uses: actions/github-script@v7
-                id: classify
-                with:
-                    github-token: ${{ steps.app-token.outputs.token }}
-                    script: |
-                        const isPr = !!context.payload.issue.pull_request
-                        const isFix = /@guiziwebbot\s+fix\b/i.test(context.payload.comment.body)
-                        const mode = isPr ? (isFix ? 'revise' : 'review') : (isFix ? 'fix' : 'none')
-                        const number = context.payload.issue.number
-                        core.setOutput('mode', mode)
-                        core.setOutput('number', String(number))
-                        let checkoutRef = '', targetIssue = ''
-                        if (mode === 'revise') {
-                            const res = await github.graphql(
-                                `query($owner:String!,$repo:String!,$num:Int!){
-                                  repository(owner:$owner,name:$repo){
-                                    pullRequest(number:$num){
-                                      headRefName
-                                      closingIssuesReferences(first:1){ nodes { number } }
-                                    }
-                                  }
-                                }`,
-                                { owner: context.repo.owner, repo: context.repo.repo, num: number }
-                            )
-                            const pr = res.repository.pullRequest
-                            checkoutRef = pr.headRefName
-                            const node = pr.closingIssuesReferences.nodes[0]
-                            targetIssue = node ? String(node.number) : ''
-                        }
-                        core.setOutput('checkout_ref', checkoutRef)
-                        core.setOutput('target_issue', targetIssue)
-                        if (mode === 'none') return
-                        await github.rest.reactions.createForIssueComment({
-                            ...context.repo,
-                            comment_id: context.payload.comment.id,
-                            content: 'eyes',
-                        })
-
-            -
-                if: steps.classify.outputs.mode != 'none'
-                uses: actions/checkout@v4
-                with:
-                    token: ${{ steps.app-token.outputs.token }}
-                    ref: ${{ steps.classify.outputs.checkout_ref }}
-                    fetch-depth: 0
-
-            -
-                if: steps.classify.outputs.mode == 'fix' || steps.classify.outputs.mode == 'revise'
-                env:
-                    GH_TOKEN: ${{ steps.app-token.outputs.token }}
-                run: |
-                    USER_ID=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)
-                    git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
-                    git config user.email "${USER_ID}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
-
-            -
-                if: steps.classify.outputs.mode == 'review'
-                uses: anthropics/claude-code-action@v1
-                with:
-                    claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-                    github_token: ${{ steps.app-token.outputs.token }}
-                    plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-                    plugins: 'code-review@claude-code-plugins'
-                    allowed_bots: 'guiziwebbot'
-                    prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ steps.classify.outputs.number }} --comment'
-
-            -
-                if: steps.classify.outputs.mode == 'fix'
                 uses: anthropics/claude-code-action@v1
                 with:
                     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
                     github_token: ${{ steps.app-token.outputs.token }}
                     allowed_bots: 'guiziwebbot'
-                    plugin_marketplaces: 'https://github.com/Guiziweb/guiziweb-plugins.git'
-                    plugins: 'guiziweb-bot@guiziweb-plugins'
-                    claude_args: '--permission-mode acceptEdits --allowedTools Edit,Write,Read,Glob,Grep,Bash(gh:*),Bash(git:*)'
-                    prompt: '/guiziweb-bot:fix-issue ${{ steps.classify.outputs.number }}'
+                    plugin_marketplaces: 'https://github.com/Guiziweb/guiziweb-plugins.git,https://github.com/anthropics/claude-code.git'
+                    plugins: 'guiziweb-bot@guiziweb-plugins,code-review@claude-code-plugins'
+                    claude_args: '--allowedTools Edit,Write,Read,Glob,Grep,Bash(gh:*),Bash(git:*)'
+                    prompt: |
+                        A comment containing @guiziwebbot triggered this on #${{ github.event.issue.number }} of ${{ github.repository }}. Read the most recent comment by camilleislasse on that item — it is your instruction.
 
-            -
-                if: steps.classify.outputs.mode == 'revise'
-                uses: anthropics/claude-code-action@v1
-                with:
-                    claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-                    github_token: ${{ steps.app-token.outputs.token }}
-                    allowed_bots: 'guiziwebbot'
-                    plugin_marketplaces: 'https://github.com/Guiziweb/guiziweb-plugins.git'
-                    plugins: 'guiziweb-bot@guiziweb-plugins'
-                    claude_args: '--permission-mode acceptEdits --allowedTools Edit,Write,Read,Glob,Grep,Bash(gh:*),Bash(git:*)'
-                    prompt: '/guiziweb-bot:revise-pr ${{ steps.classify.outputs.number }} ${{ steps.classify.outputs.target_issue }}'
+                        - If #${{ github.event.issue.number }} is an ISSUE: implement what it describes using the /guiziweb-bot:fix-issue skill.
+                        - If it is a PULL REQUEST and the comment is just "review": review it with /code-review:code-review.
+                        - If it is a PULL REQUEST and the comment is a change request: apply it using the /guiziweb-bot:revise-pr skill (resolve the linked issue from the PR's "Closes #N").
+
+                        Follow the repo conventions (CLAUDE.md, .claude/rules). If the request is ambiguous or impossible, do not guess: comment tagging @camilleislasse and set the "blocked" label.
