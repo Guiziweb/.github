@@ -88,6 +88,27 @@ jobs:
 
             -
                 if: steps.classify.outputs.mode == 'fix'
+                uses: actions/github-script@v7
+                with:
+                    github-token: ${{ steps.app-token.outputs.token }}
+                    script: |
+                        const number = Number('${{ steps.classify.outputs.number }}')
+                        async function ensureLabel(name, color, description) {
+                            try {
+                                await github.rest.issues.getLabel({ ...context.repo, name })
+                            } catch (e) {
+                                if (e.status === 404) await github.rest.issues.createLabel({ ...context.repo, name, color, description })
+                                else throw e
+                            }
+                        }
+                        await ensureLabel('bot:working', 'fbca04', 'Le bot travaille sur ce ticket')
+                        await ensureLabel('bot:stuck', 'd73a4a', 'Le bot est coincé, intervention requise')
+                        await github.rest.issues.removeLabel({ ...context.repo, issue_number: number, name: 'bot:stuck' }).catch(() => {})
+                        await github.rest.issues.addLabels({ ...context.repo, issue_number: number, labels: ['bot:working'] })
+
+            -
+                id: fix
+                if: steps.classify.outputs.mode == 'fix'
                 uses: anthropics/claude-code-action@v1
                 with:
                     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -102,6 +123,21 @@ jobs:
                         3. Ouvre une Pull Request dont le corps contient "Closes #${{ steps.classify.outputs.number }}".
 
                         Si l'issue est ambiguë ou que le correctif n'est pas évident, n'invente rien : commente l'issue en taguant @camilleislasse avec tes questions, sans ouvrir de PR.
+
+            -
+                if: ${{ always() && steps.classify.outputs.mode == 'fix' }}
+                uses: actions/github-script@v7
+                with:
+                    github-token: ${{ steps.app-token.outputs.token }}
+                    script: |
+                        const number = Number('${{ steps.classify.outputs.number }}')
+                        const failed = '${{ steps.fix.outcome }}' === 'failure'
+                        await github.rest.issues.removeLabel({ ...context.repo, issue_number: number, name: 'bot:working' }).catch(() => {})
+                        const prs = await github.rest.pulls.list({ ...context.repo, state: 'open', per_page: 100 })
+                        const linked = prs.data.some(p => new RegExp(`#${number}\\b`).test(p.body || ''))
+                        if (failed || !linked) {
+                            await github.rest.issues.addLabels({ ...context.repo, issue_number: number, labels: ['bot:stuck'] })
+                        }
 
             -
                 if: steps.classify.outputs.mode == 'revise'
