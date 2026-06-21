@@ -52,13 +52,14 @@ jobs:
                     allowed_bots: 'guiziwebbot'
                     plugin_marketplaces: 'https://github.com/Guiziweb/guiziweb-plugins.git'
                     plugins: 'guiziweb-bot@guiziweb-plugins'
-                    claude_args: '--allowedTools Edit,Write,Read,Glob,Grep,Bash(gh:*),Bash(git:*)'
+                    claude_args: '--allowedTools Edit,Write,Read,Glob,Grep,Bash(gh:*),Bash(git:*),Bash(make:*),Bash(docker:*),Bash(composer:*),Bash(npx:*),mcp__playwright'
                     prompt: |
                         A comment containing @guiziwebbot triggered this on #${{ github.event.issue.number }} of ${{ github.repository }}. Read the most recent comment by camilleislasse on that item — it is your instruction.
 
                         - If it is an ISSUE: implement what it describes (use the /guiziweb-bot:fix-issue skill for guidance).
                         - If it is a PULL REQUEST and the comment is just "review": review it with /code-review:code-review.
                         - If it is a PULL REQUEST and the comment is a change request: apply it (use the /guiziweb-bot:revise-pr skill for guidance).
+                        - If the comment asks for a SCREENSHOT of THIS project's app: first bring the app up with its Makefile (make init, then make database-init, then make load-fixtures), find the URL it is served on, then capture the requested page with the Playwright MCP (pass ignore-https-errors if the app uses a self-signed cert). For a screenshot of an external URL, just capture it. Deliver it inline: commit the PNG onto a dedicated "bot-screenshots" branch (never main nor a code branch), then comment on this item embedding it with ![screenshot](https://raw.githubusercontent.com/${{ github.repository }}/bot-screenshots/<path-to-png>).
 
                         Follow the repo conventions (CLAUDE.md, .claude/rules). Do NOT manage labels — that is handled outside. If the request is ambiguous or impossible, do not guess: add the "blocked" label and comment explaining why.
 
