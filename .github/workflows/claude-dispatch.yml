@@ -123,39 +123,10 @@ jobs:
                 name: Report token usage
                 if: ${{ always() }}
                 continue-on-error: true
-                env:
-                    GH_TOKEN: ${{ steps.app-token.outputs.token }}
-                    EXEC_FILE: ${{ steps.claude.outputs.execution_file }}
-                    REPO: ${{ github.repository }}
-                    ISSUE: ${{ github.event.issue.number }}
-                run: |
-                    set +e
-                    [ -n "$EXEC_FILE" ] && [ -f "$EXEC_FILE" ] || { echo "no execution_file, skipping"; exit 0; }
-                    # The execution file is a JSON array; the final "result" event carries
-                    # Claude Code's own authoritative usage totals + cost (per-message usage is streaming-stale).
-                    read IN OUT CR CC COST < <(jq -r '
-                      (if type=="array" then . else [.] end)
-                      | map(select(.type=="result")) | last
-                      | [ (.usage.input_tokens // 0), (.usage.output_tokens // 0),
-                          (.usage.cache_read_input_tokens // 0), (.usage.cache_creation_input_tokens // 0),
-                          (.total_cost_usd // 0) ] | @tsv' "$EXEC_FILE")
-                    [ -z "$OUT" ] && { echo "could not parse usage, skipping"; exit 0; }
-                    LINE="🪙 **Tokens** — in \`$IN\` · out \`$OUT\` · cache read \`$CR\` · cache create \`$CC\` · ~\`\$$COST\`"
-                    # Prefer appending to the run's tracking comment (last bot comment linking the job);
-                    # fall back to a standalone comment if it can't be found (action format may change).
-                    CID=$(gh api "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
-                      --jq '[.[] | select(.user.type=="Bot" and (.body | test("View job")))] | last | .id')
-                    if [ -n "$CID" ] && [ "$CID" != "null" ]; then
-                        BODY=$(gh api "repos/$REPO/issues/comments/$CID" --jq '.body')
-                        jq -n --arg b "$BODY"$'\n\n'"$LINE" '{body:$b}' > /tmp/body.json
-                        gh api -X PATCH "repos/$REPO/issues/comments/$CID" --input /tmp/body.json >/dev/null \
-                          && echo "appended tokens to tracking comment $CID" \
-                          || gh issue comment "$ISSUE" --body "$LINE"
-                    else
-                        echo "tracking comment not found, posting standalone"
-                        gh issue comment "$ISSUE" --body "$LINE"
-                    fi
-                    exit 0
+                uses: Guiziweb/.github/.github/actions/report-tokens@feat/claude-dispatch
+                with:
+                    execution-file: ${{ steps.claude.outputs.execution_file }}
+                    github-token: ${{ steps.app-token.outputs.token }}
 
             -
                 name: Finalize — assign reviewer and set final label

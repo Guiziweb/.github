@@ -1,0 +1,23 @@
+name: Report token usage
+description: Parse the Claude Code execution file and append a token/cost line to the run's tracking comment.
+
+inputs:
+    execution-file:
+        description: Path to the claude-code-action execution_file output
+        required: true
+    github-token:
+        description: Token used to read and update issue/PR comments
+        required: true
+
+runs:
+    using: composite
+    steps:
+        -
+            uses: actions/github-script@v7
+            env:
+                EXEC_FILE: ${{ inputs.execution-file }}
+            with:
+                github-token: ${{ inputs.github-token }}
+                script: |
+                    const run = require(`${process.env.GITHUB_ACTION_PATH}/report-tokens.js`)
+                    await run({ github, context })
