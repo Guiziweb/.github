@@ -99,6 +99,7 @@ jobs:
                     symfony server:start --port=8080 --daemon
 
             -
+                id: claude
                 uses: anthropics/claude-code-action@v1
                 with:
                     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -117,6 +118,34 @@ jobs:
                         - If the comment asks for a SCREENSHOT: the test application is ALREADY running at https://127.0.0.1:8080 (APP_ENV=test, admin login sylius@example.com / sylius). Use the Playwright MCP to navigate there (ignore HTTPS errors), log in if needed, and capture the requested page. Then deliver it inline: commit the PNG onto a dedicated "bot-screenshots" branch (never main nor a code branch), and comment on this item embedding it with ![screenshot](https://raw.githubusercontent.com/${{ github.repository }}/bot-screenshots/<path-to-png>).
 
                         Follow the repo conventions (CLAUDE.md, .claude/rules). Do NOT manage labels — that is handled outside. If the request is ambiguous or impossible, do not guess: add the "blocked" label and comment explaining why.
+
+            -
+                name: Report token usage as a comment
+                if: ${{ always() }}
+                env:
+                    GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                    EXEC_FILE: ${{ steps.claude.outputs.execution_file }}
+                    ISSUE: ${{ github.event.issue.number }}
+                run: |
+                    [ -n "$EXEC_FILE" ] && [ -f "$EXEC_FILE" ] || { echo "no execution_file, skipping"; exit 0; }
+                    read IN OUT CR CC COST < <(jq -rs '
+                      [.[] | select(.type=="assistant") | .message.usage // {}] as $u
+                      | [ ([$u[].input_tokens // 0] | add),
+                          ([$u[].output_tokens // 0] | add),
+                          ([$u[].cache_read_input_tokens // 0] | add),
+                          ([$u[].cache_creation_input_tokens // 0] | add),
+                          ([.[] | select(.type=="result") | .total_cost_usd // empty] | last // "n/a") ]
+                      | @tsv' "$EXEC_FILE")
+                    gh issue comment "$ISSUE" --body "🪙 **Tokens** — in: \`$IN\` · out: \`$OUT\` · cache read: \`$CR\` · cache create: \`$CC\` · cost: \`$COST\`"
+
+            -
+                name: (debug temporaire) upload execution_file
+                if: ${{ always() }}
+                uses: actions/upload-artifact@v4
+                with:
+                    name: claude-execution
+                    path: ${{ steps.claude.outputs.execution_file }}
+                    if-no-files-found: ignore
 
             -
                 name: Finalize — assign reviewer and set final label
