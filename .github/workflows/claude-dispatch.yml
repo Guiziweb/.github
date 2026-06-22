@@ -117,7 +117,7 @@ jobs:
                         - If it is a PULL REQUEST and the comment is a change request: apply it (use the /guiziweb-bot:revise-pr skill for guidance).
                         - If the comment asks for a SCREENSHOT: the test application is ALREADY running at https://127.0.0.1:8080 (APP_ENV=test, admin login sylius@example.com / sylius). Use the Playwright MCP to navigate there (ignore HTTPS errors), log in if needed, and capture the requested page. Then deliver it inline: commit the PNG onto a dedicated "bot-screenshots" branch (never main nor a code branch), and comment on this item embedding it with ![screenshot](https://raw.githubusercontent.com/${{ github.repository }}/bot-screenshots/<path-to-png>).
 
-                        Follow the repo conventions (CLAUDE.md, .claude/rules). Do NOT manage labels — that is handled outside. If the request is ambiguous or impossible, do not guess: add the "blocked" label and comment explaining why.
+                        Follow the repo conventions (CLAUDE.md, .claude/rules). Labels: the workflow automatically sets `in progress` at the start and `needs review` at the end on the item that triggered you — do NOT touch those. The only label you may set is `blocked`, and only when you give up: if the request is ambiguous or impossible, do not guess — add the `blocked` label and comment explaining why.
 
             -
                 name: Report token usage
