@@ -1,0 +1,27 @@
+name: Acknowledge and classify dispatch
+description: React to the trigger comment, set the `in progress` label, and resolve the PR head ref (empty for an issue).
+
+inputs:
+    github-token:
+        description: Token used to react and manage labels
+        required: true
+
+outputs:
+    is_pr:
+        description: "\"true\" when the triggering item is a pull request"
+        value: ${{ steps.run.outputs.is_pr }}
+    head_ref:
+        description: Head branch of the PR, or empty for an issue
+        value: ${{ steps.run.outputs.head_ref }}
+
+runs:
+    using: composite
+    steps:
+        -
+            id: run
+            uses: actions/github-script@v7
+            with:
+                github-token: ${{ inputs.github-token }}
+                script: |
+                    const run = require(`${process.env.GITHUB_ACTION_PATH}/classify.js`)
+                    await run({ github, context, core })

@@ -1,0 +1,18 @@
+name: Finalize dispatch
+description: Assign the reviewer and set the final label (`needs review` unless the bot left `blocked`).
+
+inputs:
+    github-token:
+        description: Token used to assign and manage labels
+        required: true
+
+runs:
+    using: composite
+    steps:
+        -
+            uses: actions/github-script@v7
+            with:
+                github-token: ${{ inputs.github-token }}
+                script: |
+                    const run = require(`${process.env.GITHUB_ACTION_PATH}/finalize.js`)
+                    await run({ github, context })

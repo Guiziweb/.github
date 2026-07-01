@@ -1,0 +1,44 @@
+name: Setup Sylius test application
+description: Install PHP/Node/MySQL and mount the plugin's test application (deps, DB, fixtures) with a server running on :8080.
+
+inputs:
+    php-version:
+        description: PHP version to install
+        default: "8.3"
+    node-version:
+        description: Node version to install
+        default: "22.x"
+    mysql-version:
+        description: MySQL version to start
+        default: "8.4"
+
+runs:
+    using: composite
+    steps:
+        -
+            name: Setup PHP
+            uses: shivammathur/setup-php@v2
+            with:
+                php-version: ${{ inputs.php-version }}
+                extensions: intl
+                tools: composer:v2, flex, symfony
+                coverage: none
+        -
+            name: Setup Node
+            uses: actions/setup-node@v4
+            with:
+                node-version: ${{ inputs.node-version }}
+        -
+            name: Shutdown default MySQL
+            shell: bash
+            run: sudo service mysql stop
+        -
+            name: Setup MySQL
+            uses: mirromutth/mysql-action@v1.1
+            with:
+                mysql version: ${{ inputs.mysql-version }}
+                mysql root password: "root"
+        -
+            name: Mount the test application
+            shell: bash
+            run: bash "${GITHUB_ACTION_PATH}/mount.sh"

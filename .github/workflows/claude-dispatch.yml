@@ -36,67 +36,22 @@ jobs:
             -
                 name: Acknowledge and classify
                 id: classify
-                uses: actions/github-script@v7
+                uses: Guiziweb/.github/.github/actions/classify-dispatch@feat/claude-dispatch
                 with:
                     github-token: ${{ steps.app-token.outputs.token }}
-                    script: |
-                        const n = context.payload.issue.number
-                        const wantsScreenshot = /screenshot|capture/i.test(context.payload.comment.body)
-                        core.setOutput('screenshot', wantsScreenshot ? 'true' : 'false')
-                        await github.rest.reactions.createForIssueComment({
-                            ...context.repo, comment_id: context.payload.comment.id, content: 'eyes' })
-                        for (const name of ['blocked', 'needs review']) {
-                            await github.rest.issues.removeLabel({ ...context.repo, issue_number: n, name }).catch(() => {})
-                        }
-                        await github.rest.issues.addLabels({ ...context.repo, issue_number: n, labels: ['in progress'] })
 
             -
-                if: steps.classify.outputs.screenshot == 'true'
+                name: Checkout (PR head, else default branch)
                 uses: actions/checkout@v4
+                with:
+                    ref: ${{ steps.classify.outputs.head_ref || github.event.repository.default_branch }}
+                    fetch-depth: 0
 
             -
-                if: steps.classify.outputs.screenshot == 'true'
-                name: Setup PHP
-                uses: shivammathur/setup-php@v2
+                name: Setup Sylius test application
+                uses: Guiziweb/.github/.github/actions/setup-test-app@feat/claude-dispatch
                 with:
                     php-version: "8.3"
-                    extensions: intl
-                    tools: composer:v2, flex, symfony
-                    coverage: none
-
-            -
-                if: steps.classify.outputs.screenshot == 'true'
-                name: Setup Node
-                uses: actions/setup-node@v4
-                with:
-                    node-version: "22.x"
-
-            -
-                if: steps.classify.outputs.screenshot == 'true'
-                name: Shutdown default MySQL
-                run: sudo service mysql stop
-            -
-                if: steps.classify.outputs.screenshot == 'true'
-                name: Setup MySQL
-                uses: mirromutth/mysql-action@v1.1
-                with:
-                    mysql version: "8.4"
-                    mysql root password: "root"
-
-            -
-                if: steps.classify.outputs.screenshot == 'true'
-                name: Bring the test application up
-                run: |
-                    symfony server:ca:install || true
-                    composer install --no-interaction
-                    (cd vendor/sylius/test-application && yarn install)
-                    vendor/bin/console doctrine:database:create -n --if-not-exists
-                    vendor/bin/console doctrine:schema:create -n
-                    vendor/bin/console assets:install
-                    (cd vendor/sylius/test-application && yarn build)
-                    vendor/bin/console cache:warmup
-                    vendor/bin/console sylius:fixtures:load -n
-                    symfony server:start --port=8080 --daemon
 
             -
                 id: claude
@@ -108,16 +63,17 @@ jobs:
                     allowed_bots: 'guiziwebbot'
                     plugin_marketplaces: 'https://github.com/Guiziweb/guiziweb-plugins.git'
                     plugins: 'guiziweb-bot@guiziweb-plugins'
-                    claude_args: '--allowedTools Edit,Write,Read,Glob,Grep,Bash(gh:*),Bash(git:*),mcp__playwright'
+                    claude_args: '--allowedTools Edit,Write,Read,Glob,Grep,Bash(gh:*),Bash(git:*),Bash(composer:*),Bash(yarn:*),Bash(vendor/bin/*),Bash(symfony:*),mcp__playwright'
                     prompt: |
                         A comment containing @guiziwebbot triggered this on #${{ github.event.issue.number }} of ${{ github.repository }}. Read the most recent comment by camilleislasse on that item — it is your instruction.
 
-                        - If it is an ISSUE: implement what it describes (use the /guiziweb-bot:fix-issue skill for guidance).
-                        - If it is a PULL REQUEST and the comment is just "review": review it with /code-review:code-review.
-                        - If it is a PULL REQUEST and the comment is a change request: apply it (use the /guiziweb-bot:revise-pr skill for guidance).
-                        - If the comment asks for a SCREENSHOT: the test application is ALREADY running at https://127.0.0.1:8080 (APP_ENV=test, admin login sylius@example.com / sylius). Use the Playwright MCP to navigate there (ignore HTTPS errors), log in if needed, and capture the requested page. Then deliver it inline: commit the PNG onto a dedicated "bot-screenshots" branch (never main nor a code branch), and comment on this item embedding it with ![screenshot](https://raw.githubusercontent.com/${{ github.repository }}/bot-screenshots/<path-to-png>).
+                        The test application is ALREADY mounted and running at https://127.0.0.1:8080 (APP_ENV=test, admin login sylius@example.com / sylius), checked out on the right branch. PHP/Twig edits are served live; if you change JS/SCSS assets, rebuild with `(cd vendor/sylius/test-application && yarn build)` so the running app reflects them.
 
-                        Follow the repo conventions (CLAUDE.md, .claude/rules). Labels: the workflow automatically sets `in progress` at the start and `needs review` at the end on the item that triggered you — do NOT touch those. The only label you may set is `blocked`, and only when you give up: if the request is ambiguous or impossible, do not guess — add the `blocked` label and comment explaining why.
+                        - If it is an ISSUE: implement it with the /guiziweb-bot:fix-issue skill. Run the static gate (ecs/phpstan/phpunit-unit) until green BEFORE opening the PR; if the change affects the admin UI, verify it live via the Playwright MCP and attach a screenshot.
+                        - If it is a PULL REQUEST and the comment is just "review": review it with /code-review:code-review.
+                        - If it is a PULL REQUEST and the comment is a change request: apply it with /guiziweb-bot:revise-pr (same gate + UI verification rules).
+
+                        Follow the repo conventions (CLAUDE.md, .claude/rules). Labels: the workflow sets `in progress` at the start and `needs review` at the end on the item that triggered you — do NOT touch those. The only label you may set is `blocked`, and only when you give up: if the request is ambiguous or impossible, do not guess — add the `blocked` label and comment explaining why.
 
             -
                 name: Report token usage
@@ -129,17 +85,8 @@ jobs:
                     github-token: ${{ steps.app-token.outputs.token }}
 
             -
-                name: Finalize — assign reviewer and set final label
+                name: Finalize
                 if: ${{ always() }}
-                uses: actions/github-script@v7
+                uses: Guiziweb/.github/.github/actions/finalize-dispatch@feat/claude-dispatch
                 with:
                     github-token: ${{ steps.app-token.outputs.token }}
-                    script: |
-                        const n = context.payload.issue.number
-                        await github.rest.issues.addAssignees({ ...context.repo, issue_number: n, assignees: ['camilleislasse'] }).catch(() => {})
-                        const issue = await github.rest.issues.get({ ...context.repo, issue_number: n })
-                        const labels = issue.data.labels.map(l => l.name)
-                        if (!labels.includes('blocked')) {
-                            await github.rest.issues.removeLabel({ ...context.repo, issue_number: n, name: 'in progress' }).catch(() => {})
-                            await github.rest.issues.addLabels({ ...context.repo, issue_number: n, labels: ['needs review'] })
-                        }
