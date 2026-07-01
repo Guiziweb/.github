@@ -91,7 +91,7 @@ jobs:
                     allowed_bots: 'guiziwebbot'
                     plugin_marketplaces: 'https://github.com/Guiziweb/guiziweb-plugins.git'
                     plugins: 'guiziweb-bot@guiziweb-plugins'
-                    claude_args: '${{ steps.session.outputs.args }} --allowedTools Edit,Write,Read,Glob,Grep,Bash(git:*),Bash(composer:*),Bash(yarn:*),Bash(vendor/bin/*),Bash(symfony:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr create:*),Bash(gh pr comment:*),Bash(gh pr edit:*),mcp__playwright'
+                    claude_args: '${{ steps.session.outputs.args }} --permission-mode bypassPermissions --allowedTools mcp__playwright'
                     prompt: |
                         A comment containing @guiziwebbot triggered this on #${{ github.event.issue.number }} of ${{ github.repository }}. Read the most recent comment by camilleislasse on that item — it is your instruction.
 
