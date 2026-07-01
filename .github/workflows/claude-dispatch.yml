@@ -88,7 +88,6 @@ jobs:
                 with:
                     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
                     github_token: ${{ steps.app-token.outputs.token }}
-                    track_progress: 'true'
                     allowed_bots: 'guiziwebbot'
                     plugin_marketplaces: 'https://github.com/Guiziweb/guiziweb-plugins.git'
                     plugins: 'guiziweb-bot@guiziweb-plugins'
