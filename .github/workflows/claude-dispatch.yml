@@ -54,6 +54,35 @@ jobs:
                     php-version: "8.3"
 
             -
+                name: Restore Claude session (per item)
+                uses: actions/cache/restore@v4
+                with:
+                    path: ~/.claude/projects
+                    key: claude-session-${{ github.event.issue.number }}-${{ github.run_id }}
+                    restore-keys: claude-session-${{ github.event.issue.number }}-
+
+            -
+                name: DEBUG session dir after restore (TEMP)
+                shell: bash
+                run: |
+                    echo "cwd=$(pwd)  GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+                    echo "== ~/.claude/projects after restore =="
+                    ls -la ~/.claude/projects/ 2>/dev/null || echo "(absent)"
+                    ls -la ~/.claude/projects/*/ 2>/dev/null || echo "(no project subdir)"
+
+            -
+                name: Resolve session to resume
+                id: session
+                shell: bash
+                run: |
+                    f=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1 || true)
+                    if [ -n "$f" ]; then
+                        echo "args=--resume $(basename "$f" .jsonl)" >> "$GITHUB_OUTPUT"
+                    else
+                        echo "args=" >> "$GITHUB_OUTPUT"
+                    fi
+
+            -
                 id: claude
                 uses: anthropics/claude-code-action@v1
                 with:
@@ -63,7 +92,7 @@ jobs:
                     allowed_bots: 'guiziwebbot'
                     plugin_marketplaces: 'https://github.com/Guiziweb/guiziweb-plugins.git'
                     plugins: 'guiziweb-bot@guiziweb-plugins'
-                    claude_args: '--allowedTools Edit,Write,Read,Glob,Grep,Bash(gh:*),Bash(git:*),Bash(composer:*),Bash(yarn:*),Bash(vendor/bin/*),Bash(symfony:*),mcp__playwright'
+                    claude_args: '${{ steps.session.outputs.args }} --allowedTools Edit,Write,Read,Glob,Grep,Bash(gh:*),Bash(git:*),Bash(composer:*),Bash(yarn:*),Bash(vendor/bin/*),Bash(symfony:*),mcp__playwright'
                     prompt: |
                         A comment containing @guiziwebbot triggered this on #${{ github.event.issue.number }} of ${{ github.repository }}. Read the most recent comment by camilleislasse on that item — it is your instruction.
 
@@ -74,6 +103,24 @@ jobs:
                         - If it is a PULL REQUEST and the comment is a change request: apply it with /guiziweb-bot:revise-pr (same gate + UI verification rules).
 
                         Follow the repo conventions (CLAUDE.md, .claude/rules). Labels: the workflow sets `in progress` at the start and `needs review` at the end on the item that triggered you — do NOT touch those. The only label you may set is `blocked`, and only when you give up: if the request is ambiguous or impossible, do not guess — add the `blocked` label and comment explaining why.
+
+            -
+                name: DEBUG session dir after claude (TEMP)
+                if: ${{ always() }}
+                shell: bash
+                run: |
+                    echo "resolved resume args = '${{ steps.session.outputs.args }}'"
+                    echo "session_id output   = '${{ steps.claude.outputs.session_id }}'"
+                    echo "== ~/.claude/projects after claude =="
+                    ls -la ~/.claude/projects/*/ 2>/dev/null || echo "(no project subdir)"
+
+            -
+                name: Save Claude session (per item)
+                if: ${{ always() }}
+                uses: actions/cache/save@v4
+                with:
+                    path: ~/.claude/projects
+                    key: claude-session-${{ github.event.issue.number }}-${{ github.run_id }}
 
             -
                 name: Report token usage
