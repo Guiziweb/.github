@@ -97,7 +97,7 @@ jobs:
 
                         The test application is ALREADY mounted and running at https://127.0.0.1:8080 (APP_ENV=test, admin login sylius@example.com / sylius), checked out on the right branch. PHP/Twig edits are served live; if you change JS/SCSS assets, rebuild with `(cd vendor/sylius/test-application && yarn build)` so the running app reflects them.
 
-                        - If it is an ISSUE: implement it with the /guiziweb-bot:fix-issue skill. Run the static gate (ecs/phpstan/phpunit-unit) until green BEFORE opening the PR; if the change affects the admin UI, verify it live via the Playwright MCP and attach a screenshot.
+                        - If it is an ISSUE: implement it with the /guiziweb-bot:fix-issue skill. Run the static gate (ecs/phpstan/phpunit-unit) before opening the PR and report the REAL result — if a check fails or you cannot run it, say so plainly and do not open the PR. Never claim tests passed that you did not actually run. If the change affects the admin UI, verify it live via the Playwright MCP and attach a screenshot. (The PR's own CI is the source of truth; your local gate is just to catch issues early.)
                         - If it is a PULL REQUEST and the comment is just "review": review it with /code-review:code-review.
                         - If it is a PULL REQUEST and the comment is a change request: apply it with /guiziweb-bot:revise-pr (same gate + UI verification rules).
 
