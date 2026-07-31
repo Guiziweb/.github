@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# Mount the plugin's Sylius test application and start a server on :8080.
-# Runs in the caller's checkout ($GITHUB_WORKSPACE), already on the right branch.
 set -euo pipefail
 
-symfony server:ca:install || true
+MODE="${1:-app}"
 
 composer install --no-interaction
+
+if [ "$MODE" = "deps" ]; then
+    echo "deps mounted (composer only)"
+    exit 0
+fi
+
+symfony server:ca:install || true
 
 ( cd vendor/sylius/test-application && yarn install && yarn build )
 
@@ -16,3 +21,6 @@ vendor/bin/console cache:warmup
 vendor/bin/console sylius:fixtures:load -n
 
 symfony server:start --port=8080 --daemon
+
+curl -ksf --retry 10 --retry-delay 2 --retry-all-errors -o /dev/null https://127.0.0.1:8080
+echo "app mounted and serving on https://127.0.0.1:8080"

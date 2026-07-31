@@ -1,5 +1,5 @@
-name: Setup Sylius test application
-description: Install PHP/Node/MySQL and mount the plugin's test application (deps, DB, fixtures) with a server running on :8080.
+name: Setup runner for the test application
+description: Install PHP/Node/MySQL with warm composer/yarn caches, and stage mount.sh so the agent can mount the test application on demand.
 
 inputs:
     php-version:
@@ -66,6 +66,6 @@ runs:
                 mysql version: ${{ inputs.mysql-version }}
                 mysql root password: "root"
         -
-            name: Mount the test application
+            name: Stage mount script for the agent
             shell: bash
-            run: bash "${GITHUB_ACTION_PATH}/mount.sh"
+            run: cp "${GITHUB_ACTION_PATH}/mount.sh" "${RUNNER_TEMP}/mount.sh"
