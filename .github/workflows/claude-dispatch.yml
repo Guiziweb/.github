@@ -36,7 +36,7 @@ jobs:
             -
                 name: Acknowledge and classify
                 id: classify
-                uses: Guiziweb/.github/.github/actions/classify-dispatch@feat/claude-dispatch
+                uses: Guiziweb/.github/.github/actions/classify-dispatch@main
                 with:
                     github-token: ${{ steps.app-token.outputs.token }}
 
@@ -49,26 +49,17 @@ jobs:
 
             -
                 name: Setup runner
-                uses: Guiziweb/.github/.github/actions/setup-runner@feat/claude-dispatch
+                uses: Guiziweb/.github/.github/actions/setup-runner@main
                 with:
                     php-version: "8.3"
 
             -
                 name: Restore Claude session (per item)
                 id: session
-                uses: Guiziweb/.github/.github/actions/restore-session@feat/claude-dispatch
+                uses: Guiziweb/.github/.github/actions/restore-session@main
                 with:
                     github-token: ${{ steps.app-token.outputs.token }}
                     issue-number: ${{ github.event.issue.number }}
-
-            -
-                name: DEBUG session dir after restore (TEMP)
-                shell: bash
-                run: |
-                    echo "cwd=$(pwd)  GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-                    echo "== ~/.claude/projects after restore =="
-                    ls -la ~/.claude/projects/ 2>/dev/null || echo "(absent)"
-                    ls -la ~/.claude/projects/*/ 2>/dev/null || echo "(no project subdir)"
 
             -
                 id: claude
@@ -99,16 +90,6 @@ jobs:
                         Follow the repo conventions (CLAUDE.md, .claude/rules). Labels: the workflow sets `in progress` at the start and `needs review` at the end on the item that triggered you — do NOT touch those. The only label you may set is `blocked`, and only when you give up: if the request is ambiguous or impossible, do not guess — add the `blocked` label and comment explaining why.
 
             -
-                name: DEBUG session dir after claude (TEMP)
-                if: ${{ always() }}
-                shell: bash
-                run: |
-                    echo "resolved resume args = '${{ steps.session.outputs.resume-args }}'"
-                    echo "session_id output   = '${{ steps.claude.outputs.session_id }}'"
-                    echo "== ~/.claude/projects after claude =="
-                    ls -la ~/.claude/projects/*/ 2>/dev/null || echo "(no project subdir)"
-
-            -
                 name: Save Claude session (per item)
                 if: ${{ always() }}
                 uses: actions/upload-artifact@v4
@@ -122,7 +103,7 @@ jobs:
                 name: Report token usage
                 if: ${{ always() }}
                 continue-on-error: true
-                uses: Guiziweb/.github/.github/actions/report-tokens@feat/claude-dispatch
+                uses: Guiziweb/.github/.github/actions/report-tokens@main
                 with:
                     execution-file: ${{ steps.claude.outputs.execution_file }}
                     github-token: ${{ steps.app-token.outputs.token }}
@@ -130,6 +111,6 @@ jobs:
             -
                 name: Finalize
                 if: ${{ always() }}
-                uses: Guiziweb/.github/.github/actions/finalize-dispatch@feat/claude-dispatch
+                uses: Guiziweb/.github/.github/actions/finalize-dispatch@main
                 with:
                     github-token: ${{ steps.app-token.outputs.token }}
