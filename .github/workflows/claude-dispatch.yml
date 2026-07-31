@@ -1,0 +1,116 @@
+name: Claude Dispatch
+
+on:
+    workflow_call:
+
+concurrency:
+    group: claude-dispatch-${{ github.repository }}-${{ github.event.issue.number }}
+    cancel-in-progress: false
+
+jobs:
+    dispatch:
+        if: >
+            github.event.comment.user.login == 'camilleislasse' &&
+            contains(github.event.comment.body, '@guiziwebbot')
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: write
+            pull-requests: write
+            issues: write
+            id-token: write
+        env:
+            APP_ENV: test
+            DATABASE_URL: "mysql://root:root@127.0.0.1/sylius?serverVersion=8.4"
+
+        steps:
+            -
+                uses: actions/create-github-app-token@v1
+                id: app-token
+                with:
+                    app-id: ${{ secrets.APP_ID }}
+                    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+                    owner: Guiziweb
+                    repositories: ${{ github.event.repository.name }}
+
+            -
+                name: Acknowledge and classify
+                id: classify
+                uses: Guiziweb/.github/.github/actions/classify-dispatch@main
+                with:
+                    github-token: ${{ steps.app-token.outputs.token }}
+
+            -
+                name: Checkout (PR head, else default branch)
+                uses: actions/checkout@v4
+                with:
+                    ref: ${{ steps.classify.outputs.head_ref || github.event.repository.default_branch }}
+                    fetch-depth: 0
+
+            -
+                name: Setup runner
+                uses: Guiziweb/.github/.github/actions/setup-runner@main
+                with:
+                    php-version: "8.3"
+
+            -
+                name: Restore Claude session (per item)
+                id: session
+                uses: Guiziweb/.github/.github/actions/restore-session@main
+                with:
+                    github-token: ${{ steps.app-token.outputs.token }}
+                    issue-number: ${{ github.event.issue.number }}
+
+            -
+                id: claude
+                uses: anthropics/claude-code-action@v1
+                with:
+                    claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+                    github_token: ${{ steps.app-token.outputs.token }}
+                    allowed_bots: 'guiziwebbot'
+                    plugin_marketplaces: 'https://github.com/Guiziweb/.github.git'
+                    plugins: 'guiziweb-bot@guiziweb-bot'
+                    claude_args: '${{ steps.session.outputs.resume-args }} --permission-mode bypassPermissions --allowedTools mcp__playwright'
+                    prompt: |
+                        A comment containing @guiziwebbot triggered this on #${{ github.event.issue.number }} of ${{ github.repository }}. Read the most recent comment by camilleislasse on that item — it is your instruction.
+
+                        The runner is ready (PHP 8.3, Node, MySQL, warm caches) but the test application is NOT mounted. Mount only what the task needs:
+                        - static gate / unit tests: `bash $RUNNER_TEMP/mount.sh deps` (~1 min)
+                        - live app, Behat or Playwright UI checks: `bash $RUNNER_TEMP/mount.sh app` (~3 min; serves https://127.0.0.1:8080, APP_ENV=test, admin sylius@example.com / sylius; PHP/Twig edits are served live, rebuild JS/SCSS with `(cd vendor/sylius/test-application && yarn build)`)
+                        - a pure answer/comment: mount nothing.
+
+                        - If it is an ISSUE: implement it with the /guiziweb-bot:fix-issue skill.
+                        - If it is a PULL REQUEST and the comment is just "review": review it with /code-review:code-review.
+                        - If it is a PULL REQUEST and the comment is a change request: apply it with /guiziweb-bot:revise-pr.
+
+                        The skills embed the verification rules (static gate, live UI check). Whatever you do, report only results you actually obtained — never claim a check passed that you did not run. (A PR's own CI is the source of truth; the local gate just catches issues early.)
+
+                        Always reply on the item that triggered you: if you did the work elsewhere (e.g. pushed to an existing PR), leave at least a one-line comment here linking to it.
+
+                        Follow the repo conventions (CLAUDE.md, .claude/rules). Labels: the workflow sets `in progress` at the start and `needs review` at the end on the item that triggered you — do NOT touch those. The only label you may set is `blocked`, and only when you give up: if the request is ambiguous or impossible, do not guess — add the `blocked` label and comment explaining why.
+
+            -
+                name: Save Claude session (per item)
+                if: ${{ always() }}
+                uses: actions/upload-artifact@v4
+                with:
+                    name: claude-session-${{ github.event.issue.number }}
+                    path: ~/.claude/projects
+                    retention-days: 30
+                    if-no-files-found: ignore
+
+            -
+                name: Report token usage
+                if: ${{ always() }}
+                continue-on-error: true
+                uses: Guiziweb/.github/.github/actions/report-tokens@main
+                with:
+                    execution-file: ${{ steps.claude.outputs.execution_file }}
+                    github-token: ${{ steps.app-token.outputs.token }}
+
+            -
+                name: Finalize
+                if: ${{ always() }}
+                uses: Guiziweb/.github/.github/actions/finalize-dispatch@main
+                with:
+                    github-token: ${{ steps.app-token.outputs.token }}

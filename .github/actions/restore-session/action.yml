@@ -1,0 +1,26 @@
+name: Restore Claude session
+description: Download the latest session artifact for this issue/PR into ~/.claude/projects and resolve the --resume flag.
+
+inputs:
+    github-token:
+        description: Token used to read artifacts (needs actions:read)
+        required: true
+    issue-number:
+        description: Issue/PR number the session is keyed on
+        required: true
+
+outputs:
+    resume-args:
+        description: "--resume <id> when a previous session exists, empty otherwise"
+        value: ${{ steps.run.outputs.resume-args }}
+
+runs:
+    using: composite
+    steps:
+        -
+            id: run
+            shell: bash
+            env:
+                GH_TOKEN: ${{ inputs.github-token }}
+                ISSUE_NUMBER: ${{ inputs.issue-number }}
+            run: bash "${GITHUB_ACTION_PATH}/restore.sh"
