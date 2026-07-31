@@ -77,8 +77,8 @@ jobs:
                     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
                     github_token: ${{ steps.app-token.outputs.token }}
                     allowed_bots: 'guiziwebbot'
-                    plugin_marketplaces: 'https://github.com/Guiziweb/guiziweb-plugins.git'
-                    plugins: 'guiziweb-bot@guiziweb-plugins'
+                    plugin_marketplaces: 'https://github.com/Guiziweb/.github.git'
+                    plugins: 'guiziweb-bot@guiziweb-bot'
                     claude_args: '${{ steps.session.outputs.resume-args }} --permission-mode bypassPermissions --allowedTools mcp__playwright'
                     prompt: |
                         A comment containing @guiziwebbot triggered this on #${{ github.event.issue.number }} of ${{ github.repository }}. Read the most recent comment by camilleislasse on that item — it is your instruction.
@@ -88,9 +88,11 @@ jobs:
                         - live app, Behat or Playwright UI checks: `bash $RUNNER_TEMP/mount.sh app` (~3 min; serves https://127.0.0.1:8080, APP_ENV=test, admin sylius@example.com / sylius; PHP/Twig edits are served live, rebuild JS/SCSS with `(cd vendor/sylius/test-application && yarn build)`)
                         - a pure answer/comment: mount nothing.
 
-                        - If it is an ISSUE: implement it with the /guiziweb-bot:fix-issue skill. Run the static gate (ecs/phpstan/phpunit-unit) before opening the PR and report the REAL result — if a check fails or you cannot run it, say so plainly and do not open the PR. Never claim tests passed that you did not actually run. If the change affects the admin UI, verify it live via the Playwright MCP and attach a screenshot. (The PR's own CI is the source of truth; your local gate is just to catch issues early.)
+                        - If it is an ISSUE: implement it with the /guiziweb-bot:fix-issue skill.
                         - If it is a PULL REQUEST and the comment is just "review": review it with /code-review:code-review.
-                        - If it is a PULL REQUEST and the comment is a change request: apply it with /guiziweb-bot:revise-pr (same gate + UI verification rules).
+                        - If it is a PULL REQUEST and the comment is a change request: apply it with /guiziweb-bot:revise-pr.
+
+                        The skills embed the verification rules (static gate, live UI check). Whatever you do, report only results you actually obtained — never claim a check passed that you did not run. (A PR's own CI is the source of truth; the local gate just catches issues early.)
 
                         Always reply on the item that triggered you: if you did the work elsewhere (e.g. pushed to an existing PR), leave at least a one-line comment here linking to it.
 

@@ -1,0 +1,30 @@
+{
+    "name": "guiziweb-bot",
+    "owner": {
+        "name": "Guiziweb",
+        "email": "guiziweb@gmail.com"
+    },
+    "metadata": {
+        "description": "Skills for the guiziwebbot GitHub automation, versioned next to the claude-dispatch workflow that invokes them"
+    },
+    "plugins": [
+        {
+            "name": "guiziweb-bot",
+            "source": "./guiziweb-bot",
+            "description": "Automation skills for the guiziwebbot GitHub bot: implement an issue into a PR, and apply review feedback to a PR",
+            "author": {
+                "name": "Guiziweb",
+                "email": "guiziweb@gmail.com"
+            },
+            "homepage": "https://github.com/Guiziweb/.github",
+            "repository": "https://github.com/Guiziweb/.github",
+            "license": "MIT",
+            "keywords": [
+                "github",
+                "bot",
+                "automation"
+            ],
+            "category": "productivity"
+        }
+    ]
+}
